@@ -23,6 +23,7 @@ async def create_new_session(
         db=db,
         user=current_user,
         topic=session_data.topic,
+        questions_count=session_data.questions_count,
     )
 
 

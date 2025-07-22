@@ -1,21 +1,32 @@
 import asyncio
 import json
 import uuid
-from typing import Optional, List
+from contextlib import asynccontextmanager
+from typing import Optional, List, AsyncGenerator
 
 from openai import AsyncOpenAI
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy import select
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql.expression import func
 
 from src.core.celery import celery_app
 from src.core.config import settings
-from src.db.session import AsyncSessionFactory
 from src.interviews.models import InterviewSession, Question
 from src.shared.connection_manager import manager
 
-questions_number = settings.QUESTIONS_PER_SESSION
 openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY, base_url=settings.OPENAI_BASE_URL)
+
+
+@asynccontextmanager
+async def get_task_db_session() -> AsyncGenerator[AsyncSession, None]:
+    engine = create_async_engine(settings.DATABASE_URL)
+    factory = sessionmaker(
+        autocommit=False, autoflush=False, bind=engine, class_=AsyncSession
+    )
+    async with factory() as session:
+        yield session
+    await engine.dispose()
 
 
 class QuestionGenerationService:
@@ -49,25 +60,29 @@ class QuestionGenerationService:
 question_generator = QuestionGenerationService()
 
 
-async def get_fallback_questions(db: AsyncSession, topic: str) -> list[Question]:
+async def get_fallback_questions(
+        db: AsyncSession,
+        topic: str,
+        questions_count: int,
+) -> list[Question]:
     questions_query = (
         select(Question)
         .filter(Question.topic == topic)
         .order_by(func.random())
-        .limit(questions_number)
+        .limit(questions_count)
     )
     result = await db.execute(questions_query)
     questions = result.scalars().all()
-    if len(questions) < questions_number:
+    if len(questions) < questions_count:
         return []
     return list(questions)
 
 
 @celery_app.task(name="generate_questions_for_session")
-def generate_questions_for_session(session_id: str):
+def generate_questions_for_session(session_id: str, questions_count: int):
     async def _run_async_logic():
         try:
-            async with AsyncSessionFactory() as db:
+            async with get_task_db_session() as db:
                 session = await db.get(InterviewSession, uuid.UUID(session_id))
                 if not session:
                     print(f"--- SESSION TASK [{session_id}]: Session not found")
@@ -75,7 +90,7 @@ def generate_questions_for_session(session_id: str):
 
                 generated_texts = await question_generator.generate_questions(
                     topic=session.topic,
-                    count=settings.QUESTIONS_PER_SESSION,
+                    count=questions_count,
                 )
 
                 final_questions = []
@@ -87,7 +102,11 @@ def generate_questions_for_session(session_id: str):
                 else:
                     print(f"--- SESSION TASK [{session_id}]: "
                           f"No results from OpenAI, using fallback.")
-                    final_questions = await get_fallback_questions(db, session.topic)
+                    final_questions = await get_fallback_questions(
+                        db,
+                        session.topic,
+                        questions_count,
+                    )
 
                 if not final_questions:
                     print(f"--- SESSION TASK [{session_id}]: "

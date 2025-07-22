@@ -1,7 +1,7 @@
 import uuid
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 
 class QuestionPublic(BaseModel):
@@ -16,6 +16,7 @@ class QuestionPublic(BaseModel):
 
 class SessionCreate(BaseModel):
     topic: str
+    questions_count: Optional[int] = Field(5, gt=0, lt=21)
 
 
 class SessionPublic(BaseModel):

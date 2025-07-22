@@ -14,7 +14,13 @@ from src.tasks.generation import generate_questions_for_session
 
 
 class InterviewService:
-    async def create_session(self, db: AsyncSession, user: User, topic: str) -> InterviewSession:
+    async def create_session(
+            self,
+            db: AsyncSession,
+            user: User,
+            topic: str,
+            questions_count: int,
+    ) -> InterviewSession:
         new_session = InterviewSession(
             user_id=user.id,
             topic=topic,
@@ -27,7 +33,7 @@ class InterviewService:
         session_id_str = str(new_session.id)
         print(f"--- service.py: Session {session_id_str} created. Sending to Celery... ---")
 
-        generate_questions_for_session.delay(session_id_str)
+        generate_questions_for_session.delay(session_id_str, questions_count)
 
         print(f"--- service.py: Task for session {session_id_str} is sent. ---")
         return new_session

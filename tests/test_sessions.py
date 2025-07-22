@@ -1,4 +1,4 @@
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, ANY
 
 import pytest
 from httpx import AsyncClient
@@ -49,10 +49,11 @@ async def active_session(test_db_session: AsyncSession, specific_user: User) -> 
 
 
 @pytest.mark.parametrize(
-    ("payload", "expected_status"),
+    ("payload", "expected_status", "expected_count"),
     [
-        ({"topic": "Python"}, 202),
-        ({}, 422),
+        ({"topic": "Python"}, 202, 5),
+        ({"topic": "SQL", "questions_count": 10}, 202, 10),
+        ({}, 422, None),
     ],
 )
 @patch("src.auth.service.TokenService.is_token_blacklisted", new_callable=AsyncMock)
@@ -64,7 +65,8 @@ async def test_create_session(
         sessions_url: str,
         specific_user_auth_headers: dict,
         payload: dict,
-        expected_status: int
+        expected_status: int,
+        expected_count: int,
 ):
     mock_is_token_blacklisted.return_value = False
     mock_celery_delay.return_value = None
@@ -80,7 +82,7 @@ async def test_create_session(
         data = response.json()
         assert "id" in data
         assert data["topic"] == payload["topic"]
-        mock_celery_delay.assert_called_once()
+        mock_celery_delay.assert_called_once_with(ANY, expected_count)
     else:
         mock_celery_delay.assert_not_called()
 
