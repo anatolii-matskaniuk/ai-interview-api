@@ -3,3 +3,4 @@ repos:
     rev: 7.3.0
     hooks:
     -   id: flake8
+        args: ['--config', '.flake8']
