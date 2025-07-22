@@ -127,10 +127,10 @@ This group of endpoints allows for the creation and management of interview sess
 
 | Method | Endpoint                       | Description                                        | Auth Required |
 |--------|--------------------------------|----------------------------------------------------|---------------|
-| POST   | /api/v1/sessions/              | Create a new interview session on a specific topic | No            |
-| GET    | /api/v1/sessions/              | Get a list of all interview sessions for the user  | No            |
+| POST   | /api/v1/sessions/              | Create a new interview session on a specific topic | Yes           |
+| GET    | /api/v1/sessions/              | Get a list of all interview sessions for the user  | Yes           |
 | GET    | /api/v1/sessions/{session_id}/ | Get details for a specific interview session       | Yes           |
-| GET    | /api/v1/sessions/stats/        | Get aggregated performance statistics for the user | No(Cookies)   |
+| GET    | /api/v1/sessions/stats/        | Get aggregated performance statistics for the user | Yes           |
 
 ### WebSocket
 This endpoint provides a real-time, full-duplex communication channel for conducting an interview.
