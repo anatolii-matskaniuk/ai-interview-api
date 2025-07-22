@@ -1,8 +1,7 @@
 import pytest
 from typing import AsyncGenerator
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
 from src.db.base import Base
 from src.db.session import get_db
@@ -12,7 +11,7 @@ test_engine = create_async_engine(
     "sqlite+aiosqlite:///./test.db",
     connect_args={"check_same_thread": False}
 )
-TestingSessionLocal = sessionmaker(
+TestingSessionLocal = async_sessionmaker(
     class_=AsyncSession, autocommit=False, autoflush=False, bind=test_engine
 )
 

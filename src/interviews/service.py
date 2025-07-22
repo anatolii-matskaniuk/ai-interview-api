@@ -2,7 +2,7 @@ import asyncio
 import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException
 from datetime import datetime, timezone
@@ -115,3 +115,58 @@ class InterviewService:
         db.add(timeout_answer)
         session.current_question_index += 1
         await db.commit()
+
+    async def get_user_stats(self, db: AsyncSession, user_id: uuid.UUID) -> dict:
+        query = (
+            select(
+                InterviewSession.topic,
+                func.count(func.distinct(Answer.session_id)).label("completed_sessions"),
+                func.count(Answer.id).label("total_questions_answered"),
+                func.avg(Answer.score).label("average_score"),
+                func.sum(
+                    func.extract('epoch', Answer.submitted_at - Answer.started_at)
+                ).label("total_time_spent_seconds")
+            )
+            .join(Answer, Answer.session_id == InterviewSession.id)
+            .where(
+                InterviewSession.user_id == user_id,
+                InterviewSession.status == 'completed',
+                Answer.submitted_at.is_not(None),
+                Answer.started_at.is_not(None)
+            )
+            .group_by(InterviewSession.topic)
+        )
+
+        result = await db.execute(query)
+        topic_stats_raw = result.all()
+
+        by_topic = []
+        for row in topic_stats_raw:
+            total_time = row.total_time_spent_seconds or 0
+            total_questions = row.total_questions_answered or 1
+            by_topic.append({
+                "topic": row.topic,
+                "completed_sessions": row.completed_sessions,
+                "total_questions_answered": row.total_questions_answered,
+                "average_score": round(row.average_score, 2) if row.average_score else 0.0,
+                "total_time_spent_seconds": round(total_time, 2),
+                "average_time_per_question_seconds": round(total_time / total_questions, 2)
+            })
+
+        total_completed = sum(s['completed_sessions'] for s in by_topic)
+        total_answered = sum(s['total_questions_answered'] for s in by_topic)
+        total_time_all = sum(s['total_time_spent_seconds'] for s in by_topic)
+
+        total_score_sum = sum(s['average_score'] * s['total_questions_answered'] for s in by_topic)
+        overall_avg_score = total_score_sum / total_answered if total_answered else 0.0
+
+        overall_summary = {
+            "total_completed_sessions": total_completed,
+            "total_unique_topics": len(by_topic),
+            "total_questions_answered": total_answered,
+            "overall_average_score": round(overall_avg_score, 2),
+            "overall_average_time_per_question_seconds": round(total_time_all / total_answered,
+                                                               2) if total_answered else 0.0
+        }
+
+        return {"overall_summary": overall_summary, "by_topic": by_topic}

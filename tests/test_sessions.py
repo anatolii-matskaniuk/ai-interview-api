@@ -117,7 +117,7 @@ async def test_get_single_session(
     mock_is_token_blacklisted.return_value = False
 
     get_resp = await async_client.get(
-        f"{sessions_url}{active_session.id}",
+        f"{sessions_url}{active_session.id}/",
         headers=specific_user_auth_headers
     )
 

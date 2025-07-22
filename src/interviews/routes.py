@@ -6,7 +6,7 @@ from typing import List
 from src.db.session import get_db
 from src.auth.dependencies import get_current_user
 from src.auth.models import User
-from src.interviews.schemas import SessionCreate, SessionPublic
+from src.interviews.schemas import SessionCreate, SessionPublic, StatsResponse
 from src.interviews.service import InterviewService
 
 router = APIRouter()
@@ -35,7 +35,19 @@ async def read_user_sessions(
     return await interview_service.get_all_user_sessions(db=db, user_id=current_user.id)
 
 
-@router.get("/{session_id}", response_model=SessionPublic)
+@router.get("/stats/", response_model=StatsResponse)
+async def get_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    stats_data = await interview_service.get_user_stats(
+        db=db,
+        user_id=current_user.id
+    )
+    return stats_data
+
+
+@router.get("/{session_id}/", response_model=SessionPublic)
 async def read_single_session(
     session_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
