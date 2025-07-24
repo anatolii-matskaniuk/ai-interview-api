@@ -7,12 +7,18 @@ from src.db.base import Base
 from src.db.session import get_db
 from src.main import app
 
+DATABASE_URL = "sqlite+aiosqlite:///./test.db"
+
 test_engine = create_async_engine(
-    "sqlite+aiosqlite:///./test.db",
+    DATABASE_URL,
     connect_args={"check_same_thread": False}
 )
+
 TestingSessionLocal = async_sessionmaker(
-    class_=AsyncSession, autocommit=False, autoflush=False, bind=test_engine
+    bind=test_engine,
+    class_=AsyncSession,
+    autocommit=False,
+    autoflush=False
 )
 
 
@@ -33,13 +39,15 @@ async def _setup_database():
 
 
 @pytest.fixture
-async def async_client() -> AsyncGenerator[AsyncClient, None]:
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client
-
-
-@pytest.fixture
 async def test_db_session() -> AsyncGenerator[AsyncSession, None]:
     async with TestingSessionLocal() as session:
         yield session
+
+
+@pytest.fixture
+async def async_client() -> AsyncGenerator[AsyncClient, None]:
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test"
+    ) as client:
+        yield client
